@@ -258,7 +258,7 @@ print("\n=== Verificación Final de Valores Faltantes ===")
 final_missing = df.isna().sum()
 print(final_missing[final_missing > 0])
 if final_missing.sum() == 0:
-    print("\n¡Excelente! No quedan valores faltantes en el dataset.")
+    print("\n No quedan valores faltantes en el dataset.")
 
 # Eliminar la columna auxiliar de rango de edad antes de guardar
 df.drop(columns=['Age_Range'], inplace=True)
