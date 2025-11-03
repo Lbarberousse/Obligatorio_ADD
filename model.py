@@ -1,71 +1,71 @@
+# model.py
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LogisticRegression  # o el clasificador que prefieras
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import joblib
+from pathlib import Path
 
-df_original = pd.read_csv("obesity_dataset_clean.csv", sep=";", na_values=['', ' '], skipinitialspace=True)
-df = df_original.copy() 
-df = df.dropna(subset=["NObeyesdad"])
+CAT_COLS = [
+    'Gender','family_history_with_overweight','FAVC','CAEC',
+    'SMOKE','SCC','CALC','MTRANS'
+]
+NUM_COLS = ['Age','Weight','Height','FCVC','NCP','CH2O','FAF','TUE']
+TARGET = 'NObeyesdad'
 
-print(df)
+def make_preprocess():
+    return ColumnTransformer(
+        transformers=[
+            ("cat", OneHotEncoder(handle_unknown="ignore"), CAT_COLS),
+            ("num", StandardScaler(), NUM_COLS),
+        ]
+    )
 
-cat_cols = ['Gender','family_history_with_overweight','FAVC','CAEC','SMOKE','SCC','CALC','MTRANS']
-num_cols = ['Age','Weight','Height','FCVC','NCP','CH2O','FAF','TUE']
+def make_estimator(random_state=42):
+    return RandomForestClassifier(
+        n_estimators=300,
+        max_depth=None,
+        n_jobs=-1,
+        class_weight=None,
+        random_state=random_state,
+    )
 
-X = df.drop(columns=['NObeyesdad'])
-y = df['NObeyesdad']
+def make_pipeline(random_state=42):
+    return Pipeline(steps=[
+        ("prep", make_preprocess()),
+        ("model", make_estimator(random_state=random_state)),
+    ])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+def train_from_df(df, random_state=42):
+    # asegurate de que no haya NaN en TARGET
+    df = df.dropna(subset=[TARGET]).copy()
 
-preprocess = ColumnTransformer(
-    transformers=[
-        ('cat', OneHotEncoder(handle_unknown='ignore'), cat_cols),
-        ('num', StandardScaler(), num_cols),
-    ]
-)
+    X = df.drop(columns=[TARGET])
+    y = df[TARGET]
 
-clf = Pipeline(steps=[
-    ('prep', preprocess),
-    ('model', LogisticRegression(max_iter=1000))  # o RandomForestClassifier(), etc.
-])
+    # opcional: estratificar para estabilidad
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=0.2, random_state=random_state, stratify=y
+    )
 
-clf.fit(X_train, y_train)
+    pipe = make_pipeline(random_state=random_state)
+    pipe.fit(X_train, y_train)
+    return pipe
 
-y_pred = clf.predict(X_test)
-print("Accuracy:", accuracy_score(y_test, y_pred))
-print(classification_report(y_test, y_pred))
-print(confusion_matrix(y_test, y_pred))
+def load_or_train(csv_path: str, save_path: str | None = None, random_state=42):
+    """
+    Si existe save_path (.pkl), lo carga. Si no, entrena desde el CSV y opcionalmente guarda.
+    """
+    pkl = Path(save_path) if save_path else None
+    if pkl and pkl.exists():
+        return joblib.load(pkl)
 
-nuevo = pd.DataFrame([{
-    "Gender": "Male",
-    "Age": 28,
-    "Height": 1.78,
-    "Weight": 86,
-    "family_history_with_overweight": "yes",
-    "FAVC": "yes",
-    "FCVC": 2.0,
-    "NCP": 3.0,
-    "CAEC": "Sometimes",
-    "SMOKE": "no",
-    "CH2O": 2.0,
-    "SCC": "no",
-    "FAF": 2.0,
-    "TUE": 1.0,
-    "CALC": "Sometimes",
-    "MTRANS": "Public_Transportation"
-}])
+    # leé tu CSV limpio (ajustá separador si es ';')
+    df = pd.read_csv(csv_path, sep=';')
+    pipe = train_from_df(df, random_state=random_state)
 
-pred_clase = clf.predict(nuevo)[0]
-pred_probs = clf.predict_proba(nuevo)[0]   # probas por clase
-clases = clf.named_steps["model"].classes_
-
-# ejemplo: top-3 clases más probables
-top = sorted(zip(clases, pred_probs), key=lambda x: x[1], reverse=True)[:3]
-print(pred_clase)
-print(top)
-
-
-
+    if pkl:
+        joblib.dump(pipe, pkl)
+    return pipe

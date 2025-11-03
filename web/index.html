@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Predicción de Obesidad</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 24px auto; padding: 0 12px; }
+    form { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; background: #f6f7fb; padding: 16px; border-radius: 12px; }
+    label { display: block; font-size: 0.9rem; margin-bottom: 6px; color: #333; }
+    input, select, button { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 10px; background: #fff; }
+    .row { display: flex; gap: 10px; align-items: center; grid-column: 1 / -1; }
+    .result, .probs, .error { margin-top: 16px; padding: 16px; border-radius: 12px; }
+    .result { background: #e8f5e9; border: 1px solid #c8e6c9; }
+    .error  { background: #ffebee; border: 1px solid #ffcdd2; color: #b00020; }
+    .probs  { background: #fafafa; border: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <h1>Predicción de Nivel de Obesidad</h1>
+  <p>Completá el formulario y hace clic en <b>Predecir</b>.</p>
+
+  <form id="form">
+    <div>
+      <label>Gender</label>
+      <select name="Gender">
+        <option>Male</option>
+        <option>Female</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Age</label>
+      <input name="Age" type="number" step="1" value="25" />
+    </div>
+
+    <div>
+      <label>Height (m)</label>
+      <input name="Height" type="number" step="0.01" value="1.75" />
+    </div>
+
+    <div>
+      <label>Weight (kg)</label>
+      <input name="Weight" type="number" step="0.1" value="75" />
+    </div>
+
+    <div>
+      <label>family_history_with_overweight</label>
+      <select name="family_history_with_overweight">
+        <option>no</option><option>yes</option>
+      </select>
+    </div>
+
+    <div>
+      <label>FAVC (High caloric food)</label>
+      <select name="FAVC">
+        <option>no</option><option>yes</option>
+      </select>
+    </div>
+
+    <div>
+      <label>FCVC (Vegetables 1-3)</label>
+      <input name="FCVC" type="number" step="0.1" value="3.0" />
+    </div>
+
+    <div>
+      <label>NCP (Meals/day 1-5)</label>
+      <input name="NCP" type="number" step="0.1" value="3.0" />
+    </div>
+
+    <div>
+      <label>CAEC (Snacks)</label>
+      <select name="CAEC">
+        <option>no</option>
+        <option>Sometimes</option>
+        <option>Frequently</option>
+        <option>Always</option>
+      </select>
+    </div>
+
+    <div>
+      <label>SMOKE</label>
+      <select name="SMOKE">
+        <option>no</option><option>yes</option>
+      </select>
+    </div>
+
+    <div>
+      <label>CH2O (Water 1-3)</label>
+      <input name="CH2O" type="number" step="0.1" value="2.0" />
+    </div>
+
+    <div>
+      <label>SCC (Calories monitor?)</label>
+      <select name="SCC">
+        <option>no</option><option>yes</option>
+      </select>
+    </div>
+
+    <div>
+      <label>FAF (Physical activity 0-3)</label>
+      <input name="FAF" type="number" step="0.1" value="2.0" />
+    </div>
+
+    <div>
+      <label>TUE (Screen time 0-2)</label>
+      <input name="TUE" type="number" step="0.1" value="1.0" />
+    </div>
+
+    <div>
+      <label>CALC (Alcohol)</label>
+      <select name="CALC">
+        <option>no</option>
+        <option>Sometimes</option>
+        <option>Frequently</option>
+        <option>Always</option>
+      </select>
+    </div>
+
+    <div>
+      <label>MTRANS</label>
+      <select name="MTRANS">
+        <option>Walking</option>
+        <option>Cycling</option>
+        <option>Public_Transportation</option>
+        <option>Automobile</option>
+        <option>Motorbike</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <button id="btn" type="submit">Predecir</button>
+      <span id="err" class="error" style="display:none;"></span>
+    </div>
+  </form>
+
+  <div id="out" class="result" style="display:none;"></div>
+  <div id="probs" class="probs" style="display:none;"></div>
+
+  <script>
+    const form = document.getElementById("form");
+    const out  = document.getElementById("out");
+    const probsBox = document.getElementById("probs");
+    const errBox = document.getElementById("err");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errBox.style.display = "none";
+      out.style.display = "none";
+      probsBox.style.display = "none";
+
+      // Armamos el JSON con los nombres EXACTOS de tu dataset
+      const fd = new FormData(form);
+      const payload = Object.fromEntries(fd.entries());
+      // Convertir números a Number
+      ["Age","Height","Weight","FCVC","NCP","CH2O","FAF","TUE"].forEach(k => payload[k] = Number(payload[k]));
+
+      try {
+        const res = await fetch("http://localhost:8000/predict", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`HTTP ${res.status}: ${txt}`);
+        }
+        const data = await res.json();
+
+        out.textContent = `Predicción: ${data.pred}`;
+        out.style.display = "block";
+
+        if (data.probs) {
+          const entries = Object.entries(data.probs).sort((a,b) => b[1]-a[1]).slice(0,5);
+          probsBox.innerHTML = "<b>Top probabilidades:</b><ul>" + entries.map(([c,p]) =>
+            `<li>${c}: ${(p*100).toFixed(1)}%</li>`).join("") + "</ul>";
+          probsBox.style.display = "block";
+        }
+      } catch (err) {
+        errBox.textContent = err.message || "Error realizando la predicción";
+        errBox.style.display = "inline-block";
+      }
+    });
+  </script>
+</body>
+</html>
+
