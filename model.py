@@ -4,6 +4,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score,
@@ -40,10 +41,15 @@ def make_estimator(random_state=42):
 def make_pipeline(random_state=42):
     return Pipeline(steps=[
         ("prep", make_preprocess()),
-        ("model", make_estimator(random_state=random_state)),
+        # Añadimos PCA como un paso de transformación de características.
+        # n_components=0.95 significa que PCA seleccionará automáticamente el número
+        # de componentes necesarios para explicar el 95% de la varianza.
+        ("pca", PCA(n_components=0.95, random_state=random_state)),
+        ("model", make_estimator(random_state=random_state))
     ])
 
 def train_from_df(df, random_state=42):
+    # asegurate de que no haya NaN en TARGET
     df = df.dropna(subset=[TARGET]).copy()
     X = df.drop(columns=[TARGET])
     y = df[TARGET]

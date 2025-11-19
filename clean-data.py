@@ -84,6 +84,26 @@ df.loc[df['Height'] < 1.0, 'Height'] = np.nan # Alturas menores a 1m son improba
 df.loc[df['Weight'] > 200, 'Weight'] = np.nan
 df.loc[df['Weight'] < 20, 'Weight'] = np.nan # Pesos menores a 20kg son improbables
 
+'''# Usamos el método del Rango Intercuartílico (IQR) para detectar y tratar outliers
+# en las columnas numéricas donde tiene sentido.
+print("\nLimpiando outliers con el método IQR...")
+cols_for_outlier_check = ['Age', 'Height', 'Weight', 'FCVC', 'NCP', 'CH2O', 'FAF', 'TUE']
+for col in cols_for_outlier_check:
+    if col in df.columns:
+        Q1 = df[col].quantile(0.25)
+        Q3 = df[col].quantile(0.75)
+        IQR = Q3 - Q1
+        limite_superior = Q3 + 1.5 * IQR
+        limite_inferior = Q1 - 1.5 * IQR
+
+        # Reemplazamos outliers con NaN para que luego sean imputados
+        outliers_mask = (df[col] < limite_inferior) | (df[col] > limite_superior)
+        num_outliers = outliers_mask.sum()
+        if num_outliers > 0:
+            print(f"Encontrados y reemplazados {num_outliers} outliers en '{col}'.")
+            df.loc[outliers_mask, col] = np.nan'''
+
+
 # 5. Convertir 'Age' a entero (ahora que está limpio)
 df['Age'] = np.floor(df['Age']).astype('Int64')
 
