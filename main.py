@@ -1,21 +1,18 @@
-# main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 from pathlib import Path
-from model import load_or_train, CAT_COLS, NUM_COLS  # importa tu módulo refactorizado
+from model import load_or_train, CAT_COLS, NUM_COLS  
 from fastapi.staticfiles import StaticFiles
 
-# Carpeta donde pondrás el index.html
 STATIC_DIR = Path(__file__).with_name("web")
 STATIC_DIR.mkdir(exist_ok=True)
 
 # Montamos el front en /app (evita pisar /predict)
 
-
-CSV_PATH = "obesity_dataset_clean.csv"   # ruta a tu CSV limpio
-PKL_PATH = "modelo_obesidad.pkl"         # opcional: se creará al entrenar
+CSV_PATH = "obesity_dataset_clean.csv"   
+PKL_PATH = "modelo_obesidad.pkl"        
 
 app = FastAPI()
 app.mount("/app", StaticFiles(directory=STATIC_DIR, html=True), name="app")
@@ -47,7 +44,24 @@ class ObsIn(BaseModel):
     MTRANS: str
 
 # Carga o entrena al iniciar
-clf = load_or_train(CSV_PATH, save_path=PKL_PATH, random_state=42)
+res = load_or_train(CSV_PATH, save_path=PKL_PATH, random_state=42)
+if isinstance(res, tuple) and len(res) == 2:
+    clf, METRICS = res
+else:
+    clf = res
+    METRICS = {}
+
+# Imprimir métricas básicas al iniciar (si están disponibles)
+if METRICS:
+    try:
+        print("-------------- Metricas --------------")
+        for k, v in METRICS.items():
+            if k == 'confusion_matrix':
+                print(f"{k}: (matrix {len(v)}x{len(v[0]) if v else 0})")
+            else:
+                print(f"{k}: {v}")
+    except Exception:
+        pass
 
 @app.post("/predict")
 def predict(obs: ObsIn):
@@ -66,3 +80,4 @@ def predict(obs: ObsIn):
     probs = clf.predict_proba(df)[0]
     probs_dict = {c: float(p) for c, p in zip(classes, probs)}
     return {"pred": pred, "probs": probs_dict}
+
