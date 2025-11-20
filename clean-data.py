@@ -285,4 +285,4 @@ df.drop(columns=['Age_Range'], inplace=True)
 
 output_file = "obesity_dataset_clean.csv"
 df.to_csv(output_file, index=False, sep=';')
-print(f"\n✅ Dataset limpio guardado como '{output_file}'")
+print(f"\n Dataset limpio guardado como '{output_file}'")
