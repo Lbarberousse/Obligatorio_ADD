@@ -1,6 +1,7 @@
-
 import pandas as pd
 import numpy as np
+from sklearn.naive_bayes import GaussianNB
+from sklearn.preprocessing import StandardScaler
 
 # --- LECTURA DE DATOS ---
 # Leemos el CSV original y el limpio para comparar si es necesario
@@ -214,8 +215,39 @@ for col in ['Weight', 'Height']:
 print(df[['Weight', 'Height', 'NObeyesdad']].isna().sum())
 
 
-### RELLENAR LOS VALORES FALTANTES Y REEMPLAZAR LOS VALORES INCORRECTOS DE GENDER POR UNKNOWN ##
-df['Gender'] = df['Gender'].apply(lambda x: 'Unknown' if pd.isna(x) or x not in ['Male', 'Female'] else x)
+### RELLENAR LOS VALORES FALTANTES Y REEMPLAZAR LOS VALORES INCORRECTOS DE GENDER USANDO UN CLASIFICADOR BAYESIANO ##
+df['Gender'] = df['Gender'].astype(str).str.strip().str.capitalize()
+valid = {'Male', 'Female'}
+
+mask_valid = df['Gender'].isin(valid)        
+mask_to_predict = ~df['Gender'].isin(valid) 
+
+def to_numeric_clean(s):
+    return pd.to_numeric(
+        s.astype(str).str.strip().str.replace(',', '.', regex=False),
+        errors='coerce'
+    )
+
+df['Height'] = to_numeric_clean(df['Height'])
+df['Weight'] = to_numeric_clean(df['Weight'])
+
+X_train = df.loc[mask_valid, ['Height', 'Weight']].values
+y_train = df.loc[mask_valid, 'Gender'].values
+
+assert not pd.isna(X_train).any(), "Hay NaN en X_train (no debería si ya limpiaste Height/Weight)"
+assert not pd.isna(y_train).any(), "Hay NaN en y_train (revisá mask_valid)"
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+
+model = GaussianNB()
+model.fit(X_train_scaled, y_train)
+
+X_test = df.loc[mask_to_predict, ['Height', 'Weight']].values
+X_test_scaled = scaler.transform(X_test)
+
+y_pred = model.predict(X_test_scaled)
+df.loc[mask_to_predict, 'Gender'] = y_pred
 
 ### RELLENAR FAMILY_HISTORY_WITH_OVERWEIGHT ###
 
