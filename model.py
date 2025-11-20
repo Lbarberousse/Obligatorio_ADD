@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     accuracy_score,
     precision_recall_fscore_support,
+    classification_report,
 )
 import joblib
 from pathlib import Path
@@ -76,6 +77,10 @@ def train_from_df(df, random_state=42):
     precision_pca, recall_pca, f1_pca, _ = precision_recall_fscore_support(
         y_val, y_pred_pca, average='weighted', zero_division=0
     )
+
+    print("\nRendimiento del Modelo CON PCA")
+    print("================================")
+    print(classification_report(y_val, y_pred_pca))
     metrics_pca = {
         "accuracy": accuracy_pca,
         "precision_weighted": precision_pca,
@@ -91,6 +96,10 @@ def train_from_df(df, random_state=42):
     precision_no_pca, recall_no_pca, f1_no_pca, _ = precision_recall_fscore_support(
         y_val, y_pred_no_pca, average='weighted', zero_division=0
     )
+    
+    print("\nRendimiento del Modelo SIN PCA")
+    print("================================")
+    print(classification_report(y_val, y_pred_no_pca))
     metrics_no_pca = {
         "accuracy": accuracy_no_pca,
         "precision_weighted": precision_no_pca,
@@ -98,15 +107,12 @@ def train_from_df(df, random_state=42):
         "f1_weighted": f1_no_pca,
     }
 
-    print("\n[INFO] Métricas del modelo CON PCA:", metrics_pca)
-    print("[INFO] Métricas del modelo SIN PCA:", metrics_no_pca)
-
     # Comparar modelos y devolver el mejor
     if metrics_no_pca["f1_weighted"] >= metrics_pca["f1_weighted"]:
-        print("\n[INFO] Seleccionando el modelo SIN PCA debido a su mayor rendimiento.")
+        print("\n Seleccionamos el modelo SIN PCA debido a su mayor rendimiento.")
         return pipe_without_pca, metrics_no_pca
     else:
-        print("\n[INFO] Seleccionando el modelo CON PCA debido a su mayor rendimiento.")
+        print("\n Seleccionamos el modelo CON PCA debido a su mayor rendimiento.")
         return pipe_with_pca, metrics_pca
 
 def load_or_train(csv_path: str, save_path: str | None = None, random_state=42):
@@ -138,3 +144,7 @@ def load_or_train(csv_path: str, save_path: str | None = None, random_state=42):
             print(f"[ERROR] No se pudo guardar el modelo o las métricas: {e}")
 
     return modelo, metricas
+
+if __name__ == "__main__":
+    df = pd.read_csv("obesity_dataset_clean.csv", sep=';')
+    train_from_df(df, random_state=42)
