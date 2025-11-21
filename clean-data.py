@@ -2,319 +2,290 @@ import pandas as pd
 import numpy as np
 from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import StandardScaler
+import sys
 
-# --- LECTURA DE DATOS ---
-# Leemos el CSV original y el limpio para comparar si es necesario
-df_original = pd.read_csv("Tema_6.csv", sep=";", na_values=['', ' '], skipinitialspace=True)
-df = df_original.copy() # Trabajamos sobre una copia
-df.info()
-
-filas, columnas = df.shape
-
-faltantes = df.isna().sum()
-faltantes_porcentaje = (faltantes/filas) * 100
-print('Los datos faltantes por columna son \n\n',faltantes)
-print("\nPorcentaje de datos faltantes por columna:")
-print(faltantes_porcentaje)
-
-# Calcular el porcentaje total de celdas faltantes
-total_celdas = df.size
-faltantes_totales = df.isnull().sum().sum()  # Total de celdas faltantes
-porcentaje_faltantes_totales = (faltantes_totales / total_celdas) * 100
-
-print(f"\n\nPorcentaje total de celdas faltantes en el dataset: {porcentaje_faltantes_totales:.2f}%")
-
-duplicados = df.duplicated().sum()
-duplicados_porcentaje = (duplicados/filas) * 100
-print('\nLos datos duplicados por columna son:',duplicados)
-print("\n\nPorcentaje de datos duplicados del dataset:")
-print(duplicados_porcentaje)
-
-# Eliminamos duplicados exactos
-df = df.drop_duplicates()
-
-print(df.dtypes)
-
-# --- LIMPIEZA Y CONVERSIÓN DE TIPOS ---
-
-# 1. Limpieza general de strings y valores conocidos
-for col in df.select_dtypes(include='object').columns:
-    df[col] = df[col].str.strip()
-df['Gender'] = df['Gender'].replace({'12345': np.nan, 'nan': np.nan})
-df['NObeyesdad'] = df['NObeyesdad'].replace('nan', np.nan)
-
-# 2. Función robusta para limpiar y convertir columnas numéricas
-def clean_and_convert_numeric(df_in, column_name):
-    # Convertir a string para poder manipular
-    series = df_in[column_name].astype(str)
-    
-    # Función para aplicar a cada valor
-    def clean_value(val):
-        if pd.isna(val) or val.lower() in ['nan', 'none']:
-            return np.nan
-        
-        # Si hay más de un punto, son separadores de miles -> los quitamos
-        if val.count('.') > 1:
-            val = val.replace('.', '')
-            
-        # Truncar a 2 dígitos para 'Age'
-        if column_name == 'Age' and len(val) > 2:
-            val = val[:2]
-            
-        return val
-
-    # Aplicar la limpieza
-    cleaned_series = series.apply(clean_value)
-    numeric_series = pd.to_numeric(cleaned_series, errors='coerce')
-    
-    # Lógica específica para Altura (unificar a metros)
-    if column_name == 'Height':
-        numeric_series.loc[numeric_series > 100] = numeric_series.loc[numeric_series > 100] / 100
-        
-    return numeric_series
-
-# 3. Aplicar la limpieza a todas las columnas numéricas
-numeric_cols = ['Age', 'Height', 'Weight', 'FCVC', 'NCP', 'CH2O', 'FAF', 'TUE']
-for col in numeric_cols:
-    df[col] = clean_and_convert_numeric(df, col)
-
-# 4. Corregir valores extremos/imposibles después de la conversión
-df.loc[df['Age'] > 100, 'Age'] = np.nan
-df.loc[df['Height'] > 2.5, 'Height'] = np.nan
-df.loc[df['Height'] < 1.0, 'Height'] = np.nan # Alturas menores a 1m son improbables
-df.loc[df['Weight'] > 200, 'Weight'] = np.nan
-df.loc[df['Weight'] < 20, 'Weight'] = np.nan # Pesos menores a 20kg son improbables
-
-'''# Usamos el método del Rango Intercuartílico (IQR) para detectar y tratar outliers
-# en las columnas numéricas donde tiene sentido.
-print("\nLimpiando outliers con el método IQR...")
-cols_for_outlier_check = ['Age', 'Height', 'Weight', 'FCVC', 'NCP', 'CH2O', 'FAF', 'TUE']
-for col in cols_for_outlier_check:
-    if col in df.columns:
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-        limite_superior = Q3 + 1.5 * IQR
-        limite_inferior = Q1 - 1.5 * IQR
-
-        # Reemplazamos outliers con NaN para que luego sean imputados
-        outliers_mask = (df[col] < limite_inferior) | (df[col] > limite_superior)
-        num_outliers = outliers_mask.sum()
-        if num_outliers > 0:
-            print(f"Encontrados y reemplazados {num_outliers} outliers en '{col}'.")
-            df.loc[outliers_mask, col] = np.nan'''
-
-
-# 5. Convertir 'Age' a entero (ahora que está limpio)
-df['Age'] = np.floor(df['Age']).astype('Int64')
-
-print(df.isnull().sum() )
-
-# --- ELIMINAR FILAS CON EDAD FALTANTE ---
-# De acuerdo a la instrucción, no imputamos 'Age', sino que eliminamos las filas.
-age_missing_before = df['Age'].isna().sum()
-if age_missing_before > 0:
-    print(f"\nEliminando {age_missing_before} filas donde 'Age' es nulo...")
-    df.dropna(subset=['Age'], inplace=True)
-    print(f"Verificación de nulos en 'Age' después de eliminar: {df['Age'].isna().sum()}")
-
-#Evaluar las variables discretas y los posibles valores unicos
-variables_discretas = [
-    'Gender',
-    'family_history_with_overweight',
-    'FAVC',
-    'CAEC',
-    'SMOKE',
-    'SCC',
-    'CALC',
-    'MTRANS',
-    'NObeyesdad'
+tasks = [
+    ("data_train.csv", "data_train_clean.csv", "train"),
+    ("data_test.csv",  "data_test_clean.csv",  "test")
 ]
 
-# Evaluar valores únicos para cada una
-for var in variables_discretas:
-    print(f"=== {var} ===")
-    if var in df.columns:
-        unique_values = df[var].dropna().unique()
-        print(f"Número de valores únicos: {len(unique_values)}")
-        print(f"Valores únicos: {sorted(map(str, unique_values))}\n")
+print("=== Ejecutando clean-data.py en modo AUTOMÁTICO ===")
+print("Se generarán:")
+print(" - data_train_clean.csv")
+print(" - data_test_clean.csv")
 
-# --------- RELLENAR VALORES FALTANTES --------------
+for input_file, output_file, mode in tasks:
+    print("\n----------------------------------------")
+    print(f"Procesando archivo: {input_file}")
+    print(f"Salida:             {output_file}")
+    print(f"Modo:               {mode}")
+    print("----------------------------------------\n")
 
-### RELLENAR WEIGHT, HEIGHT Y NOBEYSDAD COMBIANANDO LOS TRES ###
-print(df[['Weight', 'Height', 'NObeyesdad']].isna().sum())
+    # --- LECTURA DE DATOS ---
+    # Leemos el CSV original y el limpio para comparar si es necesario
+    df_original = pd.read_csv(input_file, sep=";", na_values=['', ' '], skipinitialspace=True)
+    df = df_original.copy() # Trabajamos sobre una copia
 
-#Paso 1: Limpiar espacios en NObeyesdad para evitar problemas de mapeo
-df['NObeyesdad'] = df['NObeyesdad'].astype(str).str.strip()
+    # --- LIMPIEZA Y CONVERSIÓN DE TIPOS ---
 
-#Paso 2: Definir rangos medios de BMI por categoría
-bmi_promedios = {
-    'Insufficient_Weight': 17,
-    'Normal_Weight': 21.5,
-    'Overweight_Level_I': 25.5,
-    'Overweight_Level_II': 28.5,
-    'Obesity_Type_I': 32,
-    'Obesity_Type_II': 37,
-    'Obesity_Type_III': 42,
-}
+    # 1. Limpieza general de strings y valores conocidos
+    for col in df.select_dtypes(include='object').columns:
+        df[col] = df[col].astype(str).str.strip()
 
-#Función para clasificar según BMI
-def clasificar_bmi(bmi):
-    if pd.isna(bmi):
-        return np.nan
-    elif bmi < 18.5:
-        return 'Insufficient_Weight'
-    elif bmi < 25:
-        return 'Normal_Weight'
-    elif bmi < 27:
-        return 'Overweight_Level_I'
-    elif bmi < 30:
-        return 'Overweight_Level_II'
-    elif bmi < 35:
-        return 'Obesity_Type_I'
-    elif bmi < 40:
-        return 'Obesity_Type_II'
-    else:
-        return 'Obesity_Type_III'
+    df['Gender'] = df['Gender'].replace({'12345': np.nan, 'nan': np.nan})
+    df['NObeyesdad'] = df['NObeyesdad'].replace('nan', np.nan)
 
-#Paso 3: Rellenar NObeyesdad si falta, usando BMI
-mask = df['NObeyesdad'].isna() & df['Weight'].notna() & df['Height'].notna()
-bmi = df.loc[mask, 'Weight'] / (df.loc[mask, 'Height'] ** 2) # La altura ya está en metros
-df.loc[mask, 'NObeyesdad'] = bmi.apply(clasificar_bmi)
+    # 2. Función robusta para limpiar y convertir columnas numéricas
+    def clean_and_convert_numeric(df_in, column_name):
+        # Convertir a string para poder manipular
+        series = df_in[column_name].astype(str)
 
-#Paso 4: Rellenar Weight si falta
-mask = df['Weight'].isna() & df['Height'].notna() & df['NObeyesdad'].isin(bmi_promedios.keys())
-# La altura debe estar en metros para el cálculo
-df.loc[mask, 'Weight'] = df.loc[mask].apply(
-    lambda row: bmi_promedios.get(row['NObeyesdad']) * (row['Height'] ** 2),
-    axis=1
-)
+        # Función para aplicar a cada valor
+        def clean_value(val):
+            if pd.isna(val) or val.lower() in ['nan', 'none']:
+                return np.nan
+            # Si hay más de un punto, son separadores de miles -> los quitamos
+            if val.count('.') > 1:
+                val = val.replace('.', '')
+            # Truncar a 2 dígitos para 'Age'
+            if column_name == 'Age' and len(val) > 2:
+                val = val[:2]
+            return val
 
-#Paso 5: Rellenar Height si falta
-mask = df['Height'].isna() & df['Weight'].notna() & df['NObeyesdad'].isin(bmi_promedios.keys())
-# La altura debe estar en metros para el cálculo
-df.loc[mask, 'Height'] = df.loc[mask].apply(
-    lambda row: np.sqrt(row['Weight'] / bmi_promedios.get(row['NObeyesdad'])),
-    axis=1
-)
+        # Aplicar la limpieza
+        cleaned = series.apply(clean_value)
+        numeric = pd.to_numeric(cleaned, errors='coerce')
 
-# --- Fallback para Weight, Height y NObeyesdad ---
-# Si después de la lógica anterior aún quedan nulos (ej. una fila tenía NaN en 2 de 3 columnas),
-# usamos una imputación por grupo como plan B.
+        # Lógica específica para Altura (unificar a metros)
+        if column_name == 'Height':
+            numeric.loc[numeric > 100] = numeric.loc[numeric > 100] / 100
 
-# Para NObeyesdad, si aún falta, no podemos hacer mucho más, así que lo eliminamos.
-df.dropna(subset=['NObeyesdad'], inplace=True)
+        return numeric
 
-# Para Weight y Height, usamos la mediana del grupo de NObeyesdad.
-for col in ['Weight', 'Height']:
-    if df[col].isna().any():
-        # Usamos transform para rellenar por grupo y luego un fillna global para los grupos sin mediana
-        df[col] = df[col].fillna(df.groupby('NObeyesdad')[col].transform('median'))
-        df[col] = df[col].fillna(df[col].median())
+    # 3. Aplicar la limpieza a todas las columnas numéricas
+    numeric_cols = ['Age','Height','Weight','FCVC','NCP','CH2O','FAF','TUE']
+    for col in numeric_cols:
+        df[col] = clean_and_convert_numeric(df, col)
 
-print(df[['Weight', 'Height', 'NObeyesdad']].isna().sum())
+    # Testeo sin imputar
+    if mode == "test":
+        print("Modo TEST: limpieza + imputación segura sin leakage")
 
+        # Imputación mínima para evitar NaNs
+        for col in numeric_cols:
+            df[col] = df[col].fillna(-1)
 
-### RELLENAR LOS VALORES FALTANTES Y REEMPLAZAR LOS VALORES INCORRECTOS DE GENDER USANDO UN CLASIFICADOR BAYESIANO ##
-df['Gender'] = df['Gender'].astype(str).str.strip().str.capitalize()
-valid = {'Male', 'Female'}
+        cat_cols = ['Gender','family_history_with_overweight','FAVC','CAEC',
+                    'SMOKE','SCC','CALC','MTRANS']
+        for col in cat_cols:
+            df[col] = df[col].fillna("Unknown")
 
-mask_valid = df['Gender'].isin(valid)        
-mask_to_predict = ~df['Gender'].isin(valid) 
+        df.to_csv(output_file, index=False, sep=";")
+        print(f"Archivo TEST generado: {output_file}")
+        continue
 
-def to_numeric_clean(s):
-    return pd.to_numeric(
-        s.astype(str).str.strip().str.replace(',', '.', regex=False),
-        errors='coerce'
-    )
+    # 4. Corregir valores extremos/imposibles después de la conversión
+    df.loc[df['Age'] > 100, 'Age'] = np.nan
+    df.loc[df['Height'] > 2.5, 'Height'] = np.nan
+    df.loc[df['Height'] < 1.0, 'Height'] = np.nan # Alturas menores a 1m son improbables
+    df.loc[df['Weight'] > 200, 'Weight'] = np.nan
+    df.loc[df['Weight'] < 20, 'Weight'] = np.nan # Pesos menores a 20kg son improbables
 
-df['Height'] = to_numeric_clean(df['Height'])
-df['Weight'] = to_numeric_clean(df['Weight'])
+    '''# Usamos el método del Rango Intercuartílico (IQR) para detectar y tratar outliers
+    # en las columnas numéricas donde tiene sentido.
+    print("\nLimpiando outliers con el método IQR...")
+    cols_for_outlier_check = ['Age', 'Height', 'Weight', 'FCVC', 'NCP', 'CH2O', 'FAF', 'TUE']
+    for col in cols_for_outlier_check:
+        if col in df.columns:
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            limite_superior = Q3 + 1.5 * IQR
+            limite_inferior = Q1 - 1.5 * IQR
 
-X_train = df.loc[mask_valid, ['Height', 'Weight']].values
-y_train = df.loc[mask_valid, 'Gender'].values
+            # Reemplazamos outliers con NaN para que luego sean imputados
+            outliers_mask = (df[col] < limite_inferior) | (df[col] > limite_superior)
+            num_outliers = outliers_mask.sum()
+            if num_outliers > 0:
+                print(f"Encontrados y reemplazados {num_outliers} outliers en '{col}'.")
+                df.loc[outliers_mask, col] = np.nan'''
+    
+    # 5. Convertir 'Age' a entero (ahora que está limpio)
+    df['Age'] = np.floor(df['Age']).astype('Int64')
 
-assert not pd.isna(X_train).any(), "Hay NaN en X_train (no debería si ya limpiaste Height/Weight)"
-assert not pd.isna(y_train).any(), "Hay NaN en y_train (revisá mask_valid)"
+    print(df.isnull().sum() )
 
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
+    # --- ELIMINAR FILAS CON EDAD FALTANTE ---
+    # De acuerdo a la instrucción, no imputamos 'Age', sino que eliminamos las filas.
+    age_missing_before = df['Age'].isna().sum()
+    if age_missing_before > 0:
+        print(f"\nEliminando {age_missing_before} filas donde 'Age' es nulo...")
+        df.dropna(subset=['Age'], inplace=True)
+        print(f"Verificación de nulos en 'Age' después de eliminar: {df['Age'].isna().sum()}")
 
-model = GaussianNB()
-model.fit(X_train_scaled, y_train)
+    #Evaluar las variables discretas y los posibles valores unicos
+    variables_discretas = [
+        'Gender',
+        'family_history_with_overweight',
+        'FAVC',
+        'CAEC',
+        'SMOKE',
+        'SCC',
+        'CALC',
+        'MTRANS',
+        'NObeyesdad'
+    ]
 
-X_test = df.loc[mask_to_predict, ['Height', 'Weight']].values
-X_test_scaled = scaler.transform(X_test)
+    # Evaluar valores únicos para cada una
+    for var in variables_discretas:
+        print(f"=== {var} ===")
+        if var in df.columns:
+            unique_values = df[var].dropna().unique()
+            print(f"Número de valores únicos: {len(unique_values)}")
+            print(f"Valores únicos: {sorted(map(str, unique_values))}\n")
 
-y_pred = model.predict(X_test_scaled)
-df.loc[mask_to_predict, 'Gender'] = y_pred
+    # --------- RELLENAR VALORES FALTANTES --------------
 
-### RELLENAR FAMILY_HISTORY_WITH_OVERWEIGHT ###
+    ### RELLENAR WEIGHT, HEIGHT Y NOBEYSDAD COMBIANANDO LOS TRES ###
+    print(df[['Weight', 'Height', 'NObeyesdad']].isna().sum())
 
-#print(df['family_history_with_overweight'].isna().sum())
+    #Paso 1: Limpiar espacios en NObeyesdad para evitar problemas de mapeo
+    df['NObeyesdad'] = df['NObeyesdad'].astype(str).str.strip()
 
-#Agrupar por 'NObeyesdad' para calcular la moda de 'family_history_with_overweight'
-family_history_mode_by_obesity = df.groupby('NObeyesdad')['family_history_with_overweight'].apply(lambda x: x.mode()[0] if not x.mode().empty else np.nan)
+    #Paso 2: Definir rangos medios de BMI por categoría
+    bmi_prom = {
+        'Insufficient_Weight': 17,
+        'Normal_Weight': 21.5,
+        'Overweight_Level_I': 25.5,
+        'Overweight_Level_II': 28.5,
+        'Obesity_Type_I': 32,
+        'Obesity_Type_II': 37,
+        'Obesity_Type_III': 42,
+    }
 
-#Función para rellenar 'family_history_with_overweight' según el nivel de obesidad
-def fill_family_history(row):
-    if pd.isna(row['family_history_with_overweight']):
-        return family_history_mode_by_obesity.get(row['NObeyesdad'], np.nan)
-    else:
-        return row['family_history_with_overweight']
+    #Función para clasificar según BMI
+    def clasificar_bmi(bmi):
+        if pd.isna(bmi): return np.nan
+        elif bmi < 18.5: return 'Insufficient_Weight'
+        elif bmi < 25: return 'Normal_Weight'
+        elif bmi < 27: return 'Overweight_Level_I'
+        elif bmi < 30: return 'Overweight_Level_II'
+        elif bmi < 35: return 'Obesity_Type_I'
+        elif bmi < 40: return 'Obesity_Type_II'
+        else: return 'Obesity_Type_III'
 
-#Aplicamos la función para rellenar los valores faltantes
-df['family_history_with_overweight'] = df.apply(fill_family_history, axis=1)
+    #Paso 3: Rellenar NObeyesdad si falta, usando BMI
+    mask = df['NObeyesdad'].isna() & df['Weight'].notna() & df['Height'].notna()
+    bmi = df.loc[mask, 'Weight'] / (df.loc[mask, 'Height'] ** 2)
+    df.loc[mask, 'NObeyesdad'] = bmi.apply(clasificar_bmi)
 
-#print(df['family_history_with_overweight'].isna().sum())
+    #Paso 4: Rellenar Weight si falta
+    mask = df['Weight'].isna() & df['Height'].notna() & df['NObeyesdad'].isin(bmi_prom.keys())
+    # La altura debe estar en metros para el cálculo
+    df.loc[mask, 'Weight'] = df.loc[mask].apply(lambda r: bmi_prom[r['NObeyesdad']] * (r['Height'] ** 2), axis=1)
 
-### RELLENAR COLUMNAS NUMÉRICAS CON MEDIANA POR GRUPO (NObeyesdad) ###
+    #Paso 5: Rellenar Height si falta
+    mask = df['Height'].isna() & df['Weight'].notna() & df['NObeyesdad'].isin(bmi_prom.keys())
+    # La altura debe estar en metros para el cálculo
+    df.loc[mask, 'Height'] = df.loc[mask].apply(lambda r: np.sqrt(r['Weight'] / bmi_prom[r['NObeyesdad']]), axis=1)
 
-# Crear rangos de edad para una imputación más precisa
-age_bins = [13, 18, 30, 45, 60, 101] # Ajustado al rango real de datos (mínimo 14)
-age_labels = ['14-18', '19-30', '31-45', '46-60', '61+'] # El límite superior es exclusivo por defecto
-df['Age_Range'] = pd.cut(df['Age'], bins=age_bins, labels=age_labels, right=True)
+    # --- Fallback para Weight, Height y NObeyesdad ---
+    # Si después de la lógica anterior aún quedan nulos (ej. una fila tenía NaN en 2 de 3 columnas),
+    # usamos una imputación por grupo como plan B.
 
-numeric_cols_to_fill = ['FCVC', 'NCP', 'CH2O', 'FAF', 'TUE']
+    # Para NObeyesdad, si aún falta, no podemos hacer mucho más, así que lo eliminamos.
+    df.dropna(subset=['NObeyesdad'], inplace=True)
 
-print("\n=== Imputando con Mediana por Grupo (NObeyesdad) ===")
-for col in numeric_cols_to_fill:
-    if col in df.columns and df[col].isna().any():
-        # Agrupamos por NObeyesdad, Género y Rango de Edad para una imputación más robusta.
-        # Ya no es necesario imputar 'Age', pero usamos 'Age_Range' para mejorar la imputación de otras columnas.
-        df[col] = df[col].fillna(df.groupby(['NObeyesdad', 'Gender', 'Age_Range'], observed=False)[col].transform('median'))
-        
-        # Fallback: si después de agrupar aún queda algún NaN, rellenamos con la mediana global.
+    # Para Weight y Height, usamos la mediana del grupo de NObeyesdad.
+    for col in ['Weight', 'Height']:
         if df[col].isna().any():
+            # Usamos transform para rellenar por grupo y luego un fillna global para los grupos sin mediana
+            df[col] = df[col].fillna(df.groupby('NObeyesdad')[col].transform('median'))
             df[col] = df[col].fillna(df[col].median())
 
-### RELLENAR COLUMNAS CATEGÓRICAS CON MODA POR GRUPO (NObeyesdad) ###
+    print(df[['Weight', 'Height', 'NObeyesdad']].isna().sum())
 
-# Limpieza específica para 'CALC' antes de imputar
-if 'CALC' in df.columns:
-    df['CALC'] = df['CALC'].replace({'No': 'no'})
+    # Rellenar Gender usando un clasificador Bayesiano
+    df['Gender'] = df['Gender'].astype(str).str.capitalize()
+    valid = {'Male','Female'}
 
-categorical_cols_to_fill = ['FAVC', 'CAEC', 'SMOKE', 'SCC', 'CALC', 'MTRANS']
-print("\n=== Imputando con Moda por Grupo (NObeyesdad) ===")
-for col in categorical_cols_to_fill:
-    if col in df.columns and df[col].isna().any():
-        # La lógica es la misma, pero con mode(). Usamos [0] porque mode() puede devolver varios valores.
-        df[col] = df[col].fillna(df.groupby('NObeyesdad')[col].transform(lambda x: x.mode()[0] if not x.mode().empty else "Unknown"))
+    mask_valid = df['Gender'].isin(valid)
+    mask_pred  = ~df['Gender'].isin(valid)
 
-        # Fallback con la moda global
-        if df[col].isna().any():
-            df[col] = df[col].fillna(df[col].mode()[0])
+    X_train = df.loc[mask_valid, ['Height','Weight']]
+    y_train = df.loc[mask_valid, 'Gender']
 
-# --- Verificación Final y Guardado ---
-print("\n=== Verificación Final de Valores Faltantes ===")
-final_missing = df.isna().sum()
-print(final_missing[final_missing > 0])
-if final_missing.sum() == 0:
-    print("\n No quedan valores faltantes en el dataset.")
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
 
-# Eliminar la columna auxiliar de rango de edad antes de guardar
-df.drop(columns=['Age_Range'], inplace=True)
+    model = GaussianNB()
+    model.fit(X_train_scaled, y_train)
 
-output_file = "obesity_dataset_clean.csv"
-df.to_csv(output_file, index=False, sep=';')
-print(f"\n Dataset limpio guardado como '{output_file}'")
+    X_test = df.loc[mask_pred, ['Height','Weight']]
+    X_test_scaled = scaler.transform(X_test)
+
+    df.loc[mask_pred, 'Gender'] = model.predict(X_test_scaled)
+
+    ### RELLENAR FAMILY_HISTORY_WITH_OVERWEIGHT ###
+
+    #print(df['family_history_with_overweight'].isna().sum())
+
+    #Agrupar por 'NObeyesdad' para calcular la moda de 'family_history_with_overweight'
+    family_history_mode_by_obesity = df.groupby('NObeyesdad')['family_history_with_overweight'].apply(lambda x: x.mode()[0] if not x.mode().empty else np.nan)
+
+    #Función para rellenar 'family_history_with_overweight' según el nivel de obesidad
+    def fill_family_history(row):
+        if pd.isna(row['family_history_with_overweight']):
+            return family_history_mode_by_obesity.get(row['NObeyesdad'], np.nan)
+        else:
+            return row['family_history_with_overweight']
+
+    #Aplicamos la función para rellenar los valores faltantes
+    df['family_history_with_overweight'] = df.apply(fill_family_history, axis=1)
+
+    #print(df['family_history_with_overweight'].isna().sum())
+
+    ### RELLENAR COLUMNAS NUMÉRICAS CON MEDIANA POR GRUPO (NObeyesdad) ###
+
+    # Crear rangos de edad para una imputación más precisa
+    age_bins = [13, 18, 30, 45, 60, 101] # Ajustado al rango real de datos (mínimo 14)
+    age_labels = ['14-18', '19-30', '31-45', '46-60', '61+'] # El límite superior es exclusivo por defecto
+    df['Age_Range'] = pd.cut(df['Age'], bins=age_bins, labels=age_labels, right=True)
+
+    numeric_cols_to_fill = ['FCVC', 'NCP', 'CH2O', 'FAF', 'TUE']
+
+    print("\n=== Imputando con Mediana por Grupo (NObeyesdad) ===")
+    for col in numeric_cols_to_fill:
+        if col in df.columns and df[col].isna().any():
+            # Agrupamos por NObeyesdad, Género y Rango de Edad para una imputación más robusta.
+            # Ya no es necesario imputar 'Age', pero usamos 'Age_Range' para mejorar la imputación de otras columnas.
+            df[col] = df[col].fillna(df.groupby(['NObeyesdad', 'Gender', 'Age_Range'], observed=False)[col].transform('median'))
+            
+            # Fallback: si después de agrupar aún queda algún NaN, rellenamos con la mediana global.
+            if df[col].isna().any():
+                df[col] = df[col].fillna(df[col].median())
+
+    ### RELLENAR COLUMNAS CATEGÓRICAS CON MODA POR GRUPO (NObeyesdad) ###
+
+    # Limpieza específica para 'CALC' antes de imputar
+    if 'CALC' in df.columns:
+        df['CALC'] = df['CALC'].replace({'No': 'no'})
+
+    categorical_cols_to_fill = ['FAVC', 'CAEC', 'SMOKE', 'SCC', 'CALC', 'MTRANS']
+    print("\n=== Imputando con Moda por Grupo (NObeyesdad) ===")
+    for col in categorical_cols_to_fill:
+        if col in df.columns and df[col].isna().any():
+            # La lógica es la misma, pero con mode(). Usamos [0] porque mode() puede devolver varios valores.
+            df[col] = df[col].fillna(df.groupby('NObeyesdad')[col].transform(lambda x: x.mode()[0] if not x.mode().empty else "Unknown"))
+
+            # Fallback con la moda global
+            if df[col].isna().any():
+                df[col] = df[col].fillna(df[col].mode()[0])
+
+    # Eliminar la columna auxiliar de rango de edad antes de guardar
+    df.drop(columns=['Age_Range'], inplace=True)
+
+    df.to_csv(output_file, index=False, sep=';')
+    print(f"Archivo TRAIN generado: {output_file}")
+
+print("\n=== ARCHIVOS GENERADOS CORRECTAMENTE ===")
