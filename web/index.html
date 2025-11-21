@@ -204,45 +204,61 @@
   <div id="probs" class="probs" style="display:none;"></div>
 
   <script>
-    const form = document.getElementById("form");
-    const out  = document.getElementById("out");
+    const form     = document.getElementById("form");
+    const out      = document.getElementById("out");
     const probsBox = document.getElementById("probs");
-    const errBox = document.getElementById("err");
+    const errBox   = document.getElementById("err");
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      errBox.style.display = "none";
-      out.style.display = "none";
+      errBox.style.display   = "none";
+      out.style.display      = "none";
       probsBox.style.display = "none";
 
-      // Armamos el JSON con los nombres EXACTOS de tu dataset
+      // Armamos el JSON con los nombres EXACTOS de las features
       const fd = new FormData(form);
       const payload = Object.fromEntries(fd.entries());
-      // Convertir números a Number
-      ["Age","Height","Weight","FCVC","NCP","CH2O","FAF","TUE"].forEach(k => payload[k] = Number(payload[k]));
+
+      // Convertir estos campos a número
+      ["Age","Height","Weight","FCVC","NCP","CH2O","FAF","TUE"].forEach(
+        k => payload[k] = Number(payload[k])
+      );
 
       try {
-        const res = await fetch("http://localhost:8000/predict", {
+        const res = await fetch("/predict", {   // 👈 importante: ruta relativa
           method: "POST",
-          headers: {"Content-Type": "application/json"},
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
+
         if (!res.ok) {
           const txt = await res.text();
           throw new Error(`HTTP ${res.status}: ${txt}`);
         }
-        const data = await res.json();
 
-        out.textContent = `Predicción: ${data.pred}`;
+        const data = await res.json();
+        console.log("Respuesta del backend:", data);   // 👈 debug en consola
+
+        // 👇 USAR LAS CLAVES CORRECTAS
+        out.textContent = `Predicción: ${data.prediction}`;
         out.style.display = "block";
 
-        if (data.probs) {
-          const entries = Object.entries(data.probs).sort((a,b) => b[1]-a[1]).slice(0,5);
-          probsBox.innerHTML = "<b>Top probabilidades:</b><ul>" + entries.map(([c,p]) =>
-            `<li>${c}: ${(p*100).toFixed(1)}%</li>`).join("") + "</ul>";
+        if (data.probabilities) {
+          const entries = Object.entries(data.probabilities)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+          probsBox.innerHTML =
+            "<b>Top probabilidades:</b><ul>" +
+            entries
+              .map(([c, p]) => `<li>${c}: ${(p * 100).toFixed(1)}%</li>`)
+              .join("") +
+            "</ul>";
+
           probsBox.style.display = "block";
         }
       } catch (err) {
+        console.error(err);
         errBox.textContent = err.message || "Error realizando la predicción";
         errBox.style.display = "inline-block";
       }
