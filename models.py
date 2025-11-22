@@ -47,20 +47,21 @@ def make_estimator(model_type: str, random_state: int = RANDOM_STATE):
     """
     if model_type == "rf":
         return RandomForestClassifier(
-            n_estimators=400,
-            max_depth=17,
+            n_estimators=500,
+            max_depth=15,
             n_jobs=-1,
             random_state=random_state,
             class_weight="balanced"
         )
     elif model_type == "knn":
         return KNeighborsClassifier(
-            n_neighbors=7,
+            n_neighbors=3,
             weights="distance",
             metric="minkowski"
         )
     elif model_type == "logreg":
         return LogisticRegression(
+            C=100,
             max_iter=1000,
             solver="lbfgs",
             class_weight="balanced"
@@ -130,7 +131,6 @@ if __name__ == "__main__":
     df = df.dropna(subset=["NObeyesdad"])
     print("Nulos en NObeyesdad DESPUÉS de filtrar:", df["NObeyesdad"].isna().sum())
 
-    # ---- NUEVO: crear target binario ----
     obese_classes = [
         "Obesity_Type_I",
         "Obesity_Type_II",
@@ -167,7 +167,7 @@ if __name__ == "__main__":
             "use_pca": False,
         },
         "knn_sin_pca": {
-            "desc": "KNN (k=7) sin PCA",
+            "desc": "KNN (k=3) sin PCA",
             "model_type": "knn",
             "use_pca": False,
         },

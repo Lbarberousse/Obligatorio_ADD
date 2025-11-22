@@ -5,42 +5,42 @@
       "model_type": "rf",
       "use_pca": true,
       "name": "RandomForest con PCA",
-      "accuracy_mean": 0.8645502645502645,
-      "accuracy_std": 0.012453547403110922,
-      "f1_weighted_mean": 0.8635284733114734,
-      "f1_weighted_std": 0.012906776985439341
+      "accuracy_mean": 0.8592592592592594,
+      "accuracy_std": 0.009813352905286442,
+      "f1_weighted_mean": 0.8579584719981174,
+      "f1_weighted_std": 0.009996134199283559
     },
     "rf_sin_pca": {
       "desc": "RandomForest sin PCA",
       "model_type": "rf",
       "use_pca": false,
       "name": "RandomForest sin PCA",
-      "accuracy_mean": 0.9380952380952381,
-      "accuracy_std": 0.012018853641905355,
-      "f1_weighted_mean": 0.9389167167208189,
-      "f1_weighted_std": 0.011952847869859002
+      "accuracy_mean": 0.9396825396825396,
+      "accuracy_std": 0.0077400734594327255,
+      "f1_weighted_mean": 0.9406793256699612,
+      "f1_weighted_std": 0.007801576021770962
     },
     "knn_sin_pca": {
-      "desc": "KNN (k=7) sin PCA",
+      "desc": "KNN (k=3) sin PCA",
       "model_type": "knn",
       "use_pca": false,
-      "name": "KNN (k=7) sin PCA",
-      "accuracy_mean": 0.7936507936507937,
-      "accuracy_std": 0.022197012659685753,
-      "f1_weighted_mean": 0.7905200920051823,
-      "f1_weighted_std": 0.02336022615670722
+      "name": "KNN (k=3) sin PCA",
+      "accuracy_mean": 0.8031746031746032,
+      "accuracy_std": 0.02638084838585801,
+      "f1_weighted_mean": 0.8012844249819195,
+      "f1_weighted_std": 0.02626283730731438
     },
     "logreg_sin_pca": {
       "desc": "Regresión Logística sin PCA",
       "model_type": "logreg",
       "use_pca": false,
       "name": "Regresión Logística sin PCA",
-      "accuracy_mean": 0.9126984126984127,
-      "accuracy_std": 0.01134794211086096,
-      "f1_weighted_mean": 0.9125007561002102,
-      "f1_weighted_std": 0.0108379391212913
+      "accuracy_mean": 0.9661375661375662,
+      "accuracy_std": 0.007740073459432678,
+      "f1_weighted_mean": 0.9662763625266017,
+      "f1_weighted_std": 0.007640263062539903
     }
   },
-  "best_model_key": "rf_sin_pca",
-  "best_model_desc": "RandomForest sin PCA"
+  "best_model_key": "logreg_sin_pca",
+  "best_model_desc": "Regresión Logística sin PCA"
 }
