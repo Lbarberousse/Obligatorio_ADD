@@ -5,40 +5,40 @@
       "model_type": "rf",
       "use_pca": true,
       "name": "RandomForest con PCA",
-      "accuracy_mean": 0.9688760806916428,
-      "accuracy_std": 0.011727371728746864,
-      "f1_weighted_mean": 0.9688141460616444,
-      "f1_weighted_std": 0.011766925824658856
+      "accuracy_mean": 0.9688625340508935,
+      "accuracy_std": 0.013478284401448298,
+      "f1_weighted_mean": 0.9687856610153883,
+      "f1_weighted_std": 0.013537384594134385
     },
     "rf_sin_pca": {
       "desc": "RandomForest sin PCA",
       "model_type": "rf",
       "use_pca": false,
       "name": "RandomForest sin PCA",
-      "accuracy_mean": 0.9867435158501442,
-      "accuracy_std": 0.004313149725387824,
-      "f1_weighted_mean": 0.9867395403524286,
-      "f1_weighted_std": 0.0043135237840625056
+      "accuracy_mean": 0.9867384226961665,
+      "accuracy_std": 0.0073214711780951675,
+      "f1_weighted_mean": 0.986730525398199,
+      "f1_weighted_std": 0.007330470430480357
     },
     "knn_sin_pca": {
       "desc": "KNN (k=3) sin PCA",
       "model_type": "knn",
       "use_pca": false,
       "name": "KNN (k=3) sin PCA",
-      "accuracy_mean": 0.9360230547550431,
-      "accuracy_std": 0.019063787214456743,
-      "f1_weighted_mean": 0.9360780481733244,
-      "f1_weighted_std": 0.01900819955628785
+      "accuracy_mean": 0.9388678493123381,
+      "accuracy_std": 0.02333519428737926,
+      "f1_weighted_mean": 0.9389064866164774,
+      "f1_weighted_std": 0.023270803418413453
     },
     "logreg_sin_pca": {
       "desc": "Regresión Logística sin PCA",
       "model_type": "logreg",
       "use_pca": false,
       "name": "Regresión Logística sin PCA",
-      "accuracy_mean": 0.9994236311239193,
-      "accuracy_std": 0.0011527377521614035,
-      "f1_weighted_mean": 0.9994234766337904,
-      "f1_weighted_std": 0.0011530467324191386
+      "accuracy_mean": 0.9988439306358382,
+      "accuracy_std": 0.0023121387283237204,
+      "f1_weighted_mean": 0.9988432675051243,
+      "f1_weighted_std": 0.002313464991460059
     }
   },
   "best_model_key": "logreg_sin_pca",

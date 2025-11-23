@@ -189,7 +189,7 @@ def train_and_evaluate_for_target(target_name: str, df: pd.DataFrame):
     X = df[CAT_COLS + NUM_COLS]
     y = df[target_name]
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
+    cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_STATE)
 
     # Definimos qué modelos vamos a probar
     model_configs = {
