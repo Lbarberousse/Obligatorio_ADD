@@ -151,7 +151,7 @@ def clasificar_bmi(bmi):
     elif bmi < 40: return 'Obesity_Type_II'
     else: return 'Obesity_Type_III'
 
-#Paso 3: Rellenar NObeyesdad si falta, usando BMI
+# Paso 3: Rellenar NObeyesdad si falta, usando BMI
 mask = df['NObeyesdad'].isna() & df['Weight'].notna() & df['Height'].notna()
 bmi = df.loc[mask, 'Weight'] / (df.loc[mask, 'Height'] ** 2)
 df.loc[mask, 'NObeyesdad'] = bmi.apply(clasificar_bmi)

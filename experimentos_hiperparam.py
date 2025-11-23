@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
-
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
@@ -9,10 +8,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import StratifiedKFold, cross_validate
 from sklearn.linear_model import LogisticRegression
-
 import matplotlib.pyplot as plt
 
 DATA_PATH = "data_clean.csv"
+OUTPUTS_DIR = Path("outputs")
 
 CAT_COLS = [
     'Gender','family_history_with_overweight','FAVC','CAEC',
@@ -104,7 +103,7 @@ plt.title("Random Forest: F1 vs n_estimators (curvas por max_depth)")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("rf_hyperparams_f1.png", dpi=150)
+plt.savefig(OUTPUTS_DIR/"rf_hyperparams_f1.png", dpi=150)
 
 print("\n=== EXPERIMENTO KNN ===")
 knn_f1s = []
@@ -143,7 +142,7 @@ plt.ylabel("F1 weighted (CV)")
 plt.title("KNN: F1 vs k")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("knn_hyperparams_f1.png", dpi=150)
+plt.savefig(OUTPUTS_DIR/"knn_hyperparams_f1.png", dpi=150)
 
 logreg_f1s = []
 
@@ -183,7 +182,7 @@ plt.ylabel("F1 weighted (CV)")
 plt.title("Regresión Logística: F1 vs C")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("logreg_hyperparams_f1.png", dpi=150)
+plt.savefig(OUTPUTS_DIR/"logreg_hyperparams_f1.png", dpi=150)
 
 print("\n=== Experimentos terminados ===")
 print("Gráficos guardados como:")

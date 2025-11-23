@@ -1,0 +1,46 @@
+{
+  "models": {
+    "rf_con_pca": {
+      "desc": "RandomForest con PCA",
+      "model_type": "rf",
+      "use_pca": true,
+      "name": "RandomForest con PCA",
+      "accuracy_mean": 0.8743515850144092,
+      "accuracy_std": 0.014420744672272971,
+      "f1_weighted_mean": 0.8733314695932396,
+      "f1_weighted_std": 0.015369698516825361
+    },
+    "rf_sin_pca": {
+      "desc": "RandomForest sin PCA",
+      "model_type": "rf",
+      "use_pca": false,
+      "name": "RandomForest sin PCA",
+      "accuracy_mean": 0.9423631123919309,
+      "accuracy_std": 0.011235497803814377,
+      "f1_weighted_mean": 0.9429300322389631,
+      "f1_weighted_std": 0.01109840188302376
+    },
+    "knn_sin_pca": {
+      "desc": "KNN (k=3) sin PCA",
+      "model_type": "knn",
+      "use_pca": false,
+      "name": "KNN (k=3) sin PCA",
+      "accuracy_mean": 0.8172910662824208,
+      "accuracy_std": 0.008664724137390693,
+      "f1_weighted_mean": 0.8156937447489474,
+      "f1_weighted_std": 0.00917586893304652
+    },
+    "logreg_sin_pca": {
+      "desc": "Regresión Logística sin PCA",
+      "model_type": "logreg",
+      "use_pca": false,
+      "name": "Regresión Logística sin PCA",
+      "accuracy_mean": 0.9711815561959656,
+      "accuracy_std": 0.010148021245912974,
+      "f1_weighted_mean": 0.9712190442493511,
+      "f1_weighted_std": 0.010081077936838316
+    }
+  },
+  "best_model_key": "logreg_sin_pca",
+  "best_model_desc": "Regresión Logística sin PCA"
+}
