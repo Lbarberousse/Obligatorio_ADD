@@ -10,10 +10,8 @@ sns.set(style="whitegrid")
 
 def find_input_file():
     candidates = [
-        "obesity_dataset_clean.csv",
-        "obesity_hw_imputed.csv",
+        "data_clean.csv",
         "Tema_6.csv",
-        "ObesityDataSet_raw_and_data_sinthetic.csv",
     ]
     for f in candidates:
         if os.path.exists(f):
@@ -28,7 +26,6 @@ def ensure_output_dirs():
 def main():
     infile = find_input_file()
     print("Loading:", infile)
-    # suppress non-critical warnings to keep terminal output clean
     warnings.filterwarnings("ignore")
     sep = ";" if infile.endswith("_clean.csv") or infile.endswith("_hw_imputed.csv") or infile == "Tema_6.csv" else ","
     df = pd.read_csv(infile, sep=sep, skipinitialspace=True)
@@ -43,17 +40,42 @@ def main():
         num_cols.remove('index')
 
     target = 'NObeyesdad' if 'NObeyesdad' in df.columns else None
+    grouped_target = None
+    
+    FIXED_ORDER = ['Insufficient weight', 'Normal weight', 'Overweight', 'Obesity']
     if target:
-        counts = df[target].value_counts()
-        print('\n=== Distribución de ' + target + ' ===')
+        # Map 4 clases: Insufficient, Normal, Obesity, Overweight
+        def map_to_four(c):
+            if pd.isna(c):
+                return np.nan
+            s = str(c).strip().lower()
+            if 'insufficient' in s or 'underweight' in s:
+                return 'Insufficient weight'
+            if s.startswith('normal') or s == 'normal':
+                return 'Normal weight'
+            if 'overweight' in s:
+                return 'Overweight'
+            if 'obesity' in s or 'obesity_type' in s or 'obesitytype' in s:
+                return 'Obesity'
+    
+            return ' '.join([w.capitalize() for w in s.split()])
+
+        grouped_col = target + '_grouped'
+        df[grouped_col] = df[target].apply(map_to_four)
+        df[grouped_col] = pd.Categorical(df[grouped_col], categories=FIXED_ORDER, ordered=True)
+        grouped_target = grouped_col
+
+        counts = df[grouped_target].value_counts().reindex(FIXED_ORDER).fillna(0)
+        print('\n=== Distribución unificada (' + grouped_target + ') ===')
         pct = (counts / counts.sum() * 100).round(2)
         display_df = pd.DataFrame({'cantidad': counts, 'porcentaje': pct})
         print(display_df.to_string())
-        n_classes = len(counts)
-        palette = sns.color_palette('tab20', n_colors=n_classes)
+
+        available_order = [o for o in FIXED_ORDER if o in df[grouped_target].cat.categories and (df[grouped_target] == o).any()]
+        palette = sns.color_palette('Set2', n_colors=len(available_order))
         plt.figure(figsize=(8,6))
-        sns.countplot(y=target, data=df, order=counts.index, palette=palette)
-        plt.title('Distribución de NObeyesdad')
+        sns.countplot(y=grouped_target, data=df, order=available_order, palette=palette)
+        plt.title('Distribución (agrupada) de NObeyesdad')
         plt.tight_layout()
         plt.savefig('outputs/class_distribution.png', dpi=150)
         plt.close()
@@ -89,17 +111,21 @@ def main():
     if target:
         col = 'Age'
         if col in df.columns:
-            group_stats = df.groupby(target)[col].agg(['count','mean','median','std']).sort_values('median')
-            print(f"\n=== Estadísticas de {col} por {target} ===")
+            group_for_stats = grouped_target if grouped_target is not None else target
+            if group_for_stats == grouped_target:
+                group_stats = df.groupby(group_for_stats)[col].agg(['count','mean','median','std']).reindex(FIXED_ORDER).dropna(how='all').sort_values('median')
+            else:
+                group_stats = df.groupby(group_for_stats)[col].agg(['count','mean','median','std']).sort_values('median')
+            print(f"\n=== Estadísticas de {col} por {group_for_stats} ===")
             gs = group_stats.rename(columns={'count':'cantidad','mean':'media','median':'mediana','std':'desviación_estándar'})
             print(gs.round(3).to_string())
 
             plt.figure(figsize=(10,6))
-            order = group_stats.sort_values('median').index
-            sns.boxplot(x=col, y=target, data=df, order=order, palette='vlag')
-            plt.title(f'{col} por {target}')
+            order = [o for o in FIXED_ORDER if o in group_stats.index]
+            sns.boxplot(x=col, y=group_for_stats, data=df, order=order, palette='vlag')
+            plt.title(f'{col} por {group_for_stats}')
             plt.tight_layout()
-            plt.savefig(f'outputs/box_{col}_by_{target}.png', dpi=150)
+            plt.savefig(f'outputs/box_{col}by{group_for_stats}.png', dpi=150)
             plt.close()
 
     # Height vs Weight scatter 
@@ -111,8 +137,9 @@ def main():
 
         plt.figure(figsize=(8,6))
         if target:
-            palette = sns.color_palette('tab20', n_colors=df[target].nunique())
-            sns.scatterplot(x='Height', y='Weight', hue=target, data=sub, palette=palette, alpha=0.9, s=40)
+            hue_col = grouped_target if grouped_target is not None else target
+            palette = sns.color_palette('tab20', n_colors=len(FIXED_ORDER))
+            sns.scatterplot(x='Height', y='Weight', hue=hue_col, data=sub, palette=palette, alpha=0.9, s=40)
             plt.legend(bbox_to_anchor=(1.05,1), loc='upper left')
         else:
             plt.scatter(sub['Height'], sub['Weight'], s=10, alpha=0.9, color='#1f78b4')
@@ -124,17 +151,20 @@ def main():
     cat_cols = [c for c in ['MTRANS','FAVC','CAEC','CALC','SMOKE','SCC','family_history_with_overweight'] if c in df.columns]
     for col in cat_cols:
         if target:
-            cros = pd.crosstab(df[col], df[target], normalize='index')*100
+            cross_col = grouped_target if grouped_target is not None else target
+            cros = pd.crosstab(df[col], df[cross_col], normalize='index')*100
+            present_cols = [c for c in FIXED_ORDER if c in cros.columns]
+            cros = cros.reindex(columns=present_cols)
             top = cros.iloc[:20]
-            print(f"\n=== Tabla % de {col} por {target} (primeras 20 filas) ===")
+            print(f"\n=== Tabla % de {col} por {cross_col} (primeras 20 filas) ===")
             print(top.round(2).to_string())
             n_series = top.shape[1]
             colors = sns.color_palette('tab20', n_colors=n_series)
             ax = top.plot(kind='bar', stacked=True, figsize=(10,6), color=colors)
             plt.ylabel('% within category')
-            plt.title(f'{col} (%) by {target}')
+            plt.title(f'{col} (%) by {cross_col}')
             plt.tight_layout()
-            outname = f'outputs/{col}_by_{target}_stacked.png'
+            outname = f'outputs/{col}by{cross_col}.png'
             plt.savefig(outname, dpi=150)
             plt.close()
 
