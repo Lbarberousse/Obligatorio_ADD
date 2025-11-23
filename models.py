@@ -1,5 +1,6 @@
 import pandas as pd
 from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
@@ -12,29 +13,40 @@ from sklearn.metrics import (
     classification_report
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate, cross_val_predict
-import joblib
+import argparse
+import matplotlib.pyplot as plt
+import seaborn as sns
 import json
 from pathlib import Path
+import joblib
 
-DATA_PATH   = "data_clean.csv"
-MODEL_OUT   = "modelo_obesidad.pkl"
-METRICS_OUT = "modelo_obesidad_metrics.json"
+# --- CONSTANTES ---
+DATA_PATH   = "data_clean.csv" # Asegurarse que el nombre es el correcto
+OUTPUTS_DIR = Path("outputs")
 
 CAT_COLS = [
     'Gender','family_history_with_overweight','FAVC','CAEC',
     'SMOKE','SCC','CALC','MTRANS'
 ]
 NUM_COLS = ['Age','Weight','Height','FCVC','NCP','CH2O','FAF','TUE']
-TARGET   = 'NObeyesdad'
-#TARGET = 'ObesityBinary'
 
 RANDOM_STATE = 42
 
 def make_preprocess():
+    # Pipeline para preprocesar las columnas numéricas: imputar con mediana y luego escalar
+    numeric_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())
+    ])
+    # Pipeline para preprocesar las columnas categóricas: imputar con moda y luego OneHotEncoding
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore'))
+    ])
     return ColumnTransformer(
         transformers=[
-            ("cat", OneHotEncoder(handle_unknown="ignore"), CAT_COLS),
-            ("num", StandardScaler(), NUM_COLS),
+            ("num", numeric_transformer, NUM_COLS),
+            ("cat", categorical_transformer, CAT_COLS)
         ]
     )
 
@@ -121,36 +133,61 @@ def evaluate_pipeline(name, pipe, X, y, cv):
 
     return metrics
 
-if __name__ == "__main__":
-    print("=== ENTRENAMIENTO BINARIO: OBESO vs NO_OBESO ===")
-    print(f"Leyendo dataset limpio: {DATA_PATH}")
-    df = pd.read_csv(DATA_PATH, sep=";")
+def plot_model_comparison(all_metrics: dict, output_path: Path, plot_title: str):
+    """
+    Genera y guarda un gráfico de barras comparando el F1-Score de los modelos.
+    """
+    # Convertir el diccionario de métricas a un DataFrame para facilitar el ploteo
+    metrics_list = []
+    for key, data in all_metrics.items():
+        metrics_list.append({
+            "Model": data["desc"],
+            "F1-Score": data["f1_weighted_mean"]
+        })
+    
+    df_plot = pd.DataFrame(metrics_list).sort_values("F1-Score", ascending=False)
 
-    # Asegurarnos de que la variable original no tenga NaN
-    print("Nulos en NObeyesdad ANTES de filtrar:", df["NObeyesdad"].isna().sum())
-    df = df.dropna(subset=["NObeyesdad"])
-    print("Nulos en NObeyesdad DESPUÉS de filtrar:", df["NObeyesdad"].isna().sum())
+    # Crear la gráfica
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, ax = plt.subplots(figsize=(12, 7))
 
-    obese_classes = [
-        "Obesity_Type_I",
-        "Obesity_Type_II",
-        "Obesity_Type_III",
-    ]
+    bars = sns.barplot(
+        x="F1-Score",
+        y="Model",
+        data=df_plot,
+        ax=ax,
+        palette="viridis"
+    )
 
-    def to_binary_label(label):
-        if label in obese_classes:
-            return "Obeso"
-        else:
-            return "No_Obeso"
+    # Añadir etiquetas de valor en cada barra
+    for bar in bars.patches:
+        ax.text(
+            bar.get_width() + 0.005,
+            bar.get_y() + bar.get_height() / 2,
+            f'{bar.get_width():.3f}',
+            va='center'
+        )
 
-    df["ObesityBinary"] = df["NObeyesdad"].apply(to_binary_label)
+    ax.set_title(plot_title, fontsize=16, weight='bold')
+    ax.set_xlabel("F1-Score Ponderado (CV)", fontsize=12)
+    ax.set_ylabel("") # El nombre de los modelos ya está en el eje y
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    print(f"Gráfica de comparación de modelos guardada en: {output_path}")
 
-    # Por si acaso:
-    print(df["ObesityBinary"].value_counts())
+def train_and_evaluate_for_target(target_name: str, df: pd.DataFrame):
+    """
+    Ejecuta el ciclo completo de entrenamiento y evaluación para un target específico.
+    """
+    target_suffix = "multiclass" if target_name == "NObeyesdad" else "binary"
+    MODEL_OUT = f"modelo_obesidad_{target_suffix}.pkl"
+    METRICS_OUT = f"modelo_obesidad_metrics_{target_suffix}.json"
 
+    print(f"\n{'='*20} ENTRENAMIENTO DEL MODELO ({target_suffix.upper()}) {'='*20}")
+    
     # Armamos X e y
     X = df[CAT_COLS + NUM_COLS]
-    y = df[TARGET]
+    y = df[target_name]
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
@@ -203,6 +240,13 @@ if __name__ == "__main__":
     print(f"\n>>> MEJOR MODELO SEGÚN F1 WEIGHTED: {best_cfg['desc']} ({best_key}) <<<")
     print(f"F1_weighted_mean = {best_cfg['f1_weighted_mean']:.3f}")
 
+    # Generar y guardar la gráfica de comparación
+    plot_model_comparison(
+        all_metrics=all_metrics,
+        output_path=OUTPUTS_DIR / f"model_comparison_{target_suffix}.png",
+        plot_title=f"Comparación de Modelos - Tarea {target_suffix.upper()}"
+    )
+
     # Entrenar mejor modelo sobre TODO el dataset limpio
     print(f"\nEntrenando modelo final ({best_cfg['desc']}) sobre todo el dataset...")
     final_model = build_pipeline(
@@ -242,3 +286,35 @@ if __name__ == "__main__":
         print(f"   F1 weighted medio: {info['f1_weighted_mean']:.3f}")
         print(f"   Accuracy medio:    {info['accuracy_mean']:.3f}")
         print()
+
+if __name__ == "__main__":
+    print("Leyendo y preparando el dataset...")
+    # Asegurarse de que el directorio de salida exista
+    OUTPUTS_DIR.mkdir(exist_ok=True)
+
+    df = pd.read_csv(DATA_PATH, sep=";")
+
+    # 1. Limpiar filas donde la variable objetivo original ('NObeyesdad') es nula.
+    #    Esto es crucial para asegurar la consistencia de ambos targets.
+    initial_rows = len(df)
+    df = df.dropna(subset=["NObeyesdad"])
+    print(f"Se eliminaron {initial_rows - len(df)} filas con target 'NObeyesdad' nulo.")
+
+    # 2. Crear la variable objetivo binaria a partir de la multiclase ya limpia.
+    obese_classes = [
+        "Obesity_Type_I",
+        "Obesity_Type_II",
+        "Obesity_Type_III",
+    ]
+    df["ObesityBinary"] = df["NObeyesdad"].apply(
+        lambda label: "Obeso" if label in obese_classes else "No_Obeso"
+    )
+
+    # Lista de targets a entrenar
+    targets_to_train = ["NObeyesdad", "ObesityBinary"]
+
+    # Ejecutar el proceso para cada target
+    for target in targets_to_train:
+        train_and_evaluate_for_target(target_name=target, df=df.copy())
+
+    print("\nProceso de entrenamiento para todos los targets completado.")

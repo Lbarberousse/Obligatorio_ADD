@@ -53,20 +53,27 @@ numeric_cols = ['Age','Height','Weight','FCVC','NCP','CH2O','FAF','TUE']
 for col in numeric_cols:
     df[col] = clean_and_convert_numeric(df, col)
 
+# 4. Corregir valores extremos/imposibles (Outliers)
 
-# 4. Corregir valores extremos/imposibles después de la conversión
+# Etapa 1: Reglas basadas en límites fisiológicos admisibles
+print("\nEtapa 1: Aplicando reglas de admisibilidad fisiológica...")
+
+# Edad mayor a 100 años -> NaN
 df.loc[df['Age'] > 100, 'Age'] = np.nan
-df.loc[df['Height'] > 2.5, 'Height'] = np.nan
-df.loc[df['Height'] < 1.0, 'Height'] = np.nan # Alturas menores a 1m son improbables
-df.loc[df['Weight'] > 200, 'Weight'] = np.nan
-df.loc[df['Weight'] < 20, 'Weight'] = np.nan # Pesos menores a 20kg son improbables
 
-'''# Usamos el método del Rango Intercuartílico (IQR) para detectar y tratar outliers
-# en las columnas numéricas donde tiene sentido.
-print("\nLimpiando outliers con el método IQR...")
+# Estaturas fuera del rango [1.0 m, 2.5 m] -> NaN
+df.loc[(df['Height'] < 1.0) | (df['Height'] > 2.5), 'Height'] = np.nan
+
+# Pesos menores a 20 kg o mayores a 350 kg -> NaN
+df.loc[(df['Weight'] < 20) | (df['Weight'] > 350), 'Weight'] = np.nan
+
+print("Reglas de límites fijos aplicadas.")
+
+# Etapa 2: Usamos el método del Rango Intercuartílico (IQR) para detectar y tratar outliers estadísticos.
+print("\nEtapa 2: Limpiando outliers estadísticos con el método IQR...")
 cols_for_outlier_check = ['Age', 'Height', 'Weight', 'FCVC', 'NCP', 'CH2O', 'FAF', 'TUE']
 for col in cols_for_outlier_check:
-    if col in df.columns:
+    if col in df.columns and df[col].notna().sum() > 0: # Solo si hay datos no nulos
         Q1 = df[col].quantile(0.25)
         Q3 = df[col].quantile(0.75)
         IQR = Q3 - Q1
@@ -78,7 +85,7 @@ for col in cols_for_outlier_check:
         num_outliers = outliers_mask.sum()
         if num_outliers > 0:
             print(f"Encontrados y reemplazados {num_outliers} outliers en '{col}'.")
-            df.loc[outliers_mask, col] = np.nan'''
+            df.loc[outliers_mask, col] = np.nan
 
 # 5. Convertir 'Age' a entero (ahora que está limpio)
 df['Age'] = np.floor(df['Age']).astype('Int64')
